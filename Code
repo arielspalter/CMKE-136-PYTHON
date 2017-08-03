@@ -1,0 +1,426 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+mydata = pd.read_csv("C:\Users\BBEDIT3\Desktop\New folder\cc.csv",sep="\s*,\s*", engine="python")
+#renaimng the columns
+mydata.columns=["age","work-class","unknown","education","education-num","marital-status","work-field","unknown2","race","sex","capital-gain","capital-loss","hours-per-week","country","salary"]
+
+mydata.head()
+mydata.describe()
+mydata.info()
+
+# breaking salary to numeric:
+salary_num = []
+for i in mydata['salary']:
+	if i=='>50K':
+		salary_num.append(1)
+	else:
+		salary_num.append(0)
+		
+mydata['salary_num'] = salary_num
+
+
+# INSTEAD OF THIS LOOP ABOVE: LabelEncoder! trning categorical variables to numeric
+# can come in handy in multi-class variables 
+from sklearn.preprocessing import LabelEncoder
+enc = LabelEncoder()
+salary_num = enc.fit_transform( mydata['salary'] )
+mydata['salary_num'] = salary_num
+
+
+# breaking marital status to binary:
+mydata['marital-status'].value_counts()
+
+marital_num = []
+for i in mydata['marital-status']:
+	if i == "Married-civ-spouse":
+		marital_num.append(1)
+	elif i == "Never-married":
+		marital_num.append(0)
+	elif i == "Divorced":
+		marital_num.append(0)
+	elif i == "Separated":
+		marital_num.append(0)
+	elif i == "Widowed":
+		marital_num.append(0)
+	elif i == "Married-spouse-absent":
+		marital_num.append(1)
+	elif i == "Married-AF-spouse":
+		marital_num.append(1)
+	else:
+		marital_num.append(0)
+		
+mydata['marital_num']=marital_num
+
+# breaking Occupation into binary
+occupation = []
+
+for i in mydata['work-field']:
+	if i == "Armed-Forces":
+		occupation.append(0)
+	elif i == "Craft-repair":
+		occupation.append(0)
+	elif i == "Farming-fishing":
+		occupation.append(0)
+	elif i == "Handlers-cleaners":
+		occupation.append(0)
+	elif i == "Machine-op-inspct":
+		occupation.append(0)
+	elif i == "Other-service":
+		occupation.append(0)
+	elif i == "Priv-house-serv":
+		occupation.append(0)
+	elif i == "Protective-serv":
+		occupation.append(0)
+	elif i == "?":
+		occupation.append(0)
+	elif i == "Transport-moving":
+		occupation.append(0)
+	else:
+		occupation.append(1)
+
+mydata['occupation'] = occupation
+			
+
+
+	
+#breaking sex into binary
+mydata['sex'].value_counts()
+
+sex_male = []
+
+for i in mydata['sex']:
+	if i=="Male":
+		sex_male.append(1)
+	else:
+		sex_male.append(0)
+		
+mydata['sex_male']=sex_male
+
+mydata[['sex','sex_male']]
+
+# choosing my predictors and target
+x = mydata[['age','education-num','hours-per-week','marital_num','sex_male','occupation']]
+y = ydata['salary']
+
+#split the data into train and test:
+from sklearn.model_selection import train_test_split
+x_train,x_test,y_train,y_test=train_test_split(x, y, random_state = 7)
+
+x_train.shape #the dimensions are (24420,6) out of 3256
+x_text.shape #the dimensions are (8140,6) out of 3256
+y_train.shape # only a list of 24420L,
+y_test.shape # only a list of 8140L,
+
+#normalize x_train and and x_test with my function (GAVE POOR RESULTS BUT GOOD TO KNOW TO APPLY FUNCTION ON DF)
+
+def norm(v):
+	val=(v-min(v))/(max(v)-min(v))
+	return(val)
+	
+my_norm_x_train = x_train.apply(norm, axis=1)
+my_norm_x_test = x_test.apply(norm, axis=1)
+
+
+#normalize x_train and and x_test with scikit-learn built-in function
+from sklearn.preprocessing import StandardScaler
+scalar=StandardScaler().fit(x_train)
+norm_x_train = scalar.transform(x_train)
+norm_x_test = scalar.transform(x_test)
+
+## KNN with ACCURACY
+# with scikit-learn normalization
+from sklearn import neighbors
+knn = neighbors.KNeighborsClassifier(n_neighbors=21)
+knn.fit(norm_x_train, y_train)
+knn.score(norm_x_test, y_test) # similar to metrics-accuracy, but done during building (same results as accuracy_score below)
+knn_y_pred = knn.predict(norm_x_test)
+
+# extracting accuracy value
+from sklearn.metrics import accuracy_score # metrics-accuracy
+accuracy_score(y_test, knn_y_pred)
+
+from sklearn.metrics import classification_report # metrics-recall / precision / f1 / support
+print(classification_report(y_test, knn_y_pred))
+
+from sklearn.metrics import confusion_matrix # metrics-confusion_matrix w/o headers
+print(confusion_matrix(y_test, knn_y_pred))
+
+# cross-Validation ## to validate after fitting the models
+from sklearn.model_selection import cross_val_score
+knn_clf = cross_val_score(knn, norm_x_train, y_train, cv=10)
+
+
+## ROC CURVE NEEDS 2 NUMERICAL VARIABLES FOR M & D, SO I TURNED Y_TEST TO NUMERIC INSTEAD OF LABELS
+salary_num = []
+for i in y_test:
+	if i=='>50K':
+		salary_num.append(1)
+	else:
+		salary_num.append(0)
+		
+y_test_num = salary_num
+
+## KNN with probabilities and ROC
+from sklearn.metrics import roc_curve
+from sklearn.metrics import auc
+
+# extracting probabilites instead of labels
+
+y_pred_prob = knn.predict_proba(norm_x_test)
+
+
+# AND THEN...
+
+
+#STEP 1: building the roc_curve # extracting auc (value: auc=0.86 btw..) to put in the legend
+knn_fpr,knn_tpr,knn_thresholds = roc_curve(y_test_num, y_pred_prob[:,1])
+Knn_roc_auc = auc(knn_fpr, knn_tpr)
+
+#STEP 2: ROC curve plot
+
+plt.plot(knn_fpr,knn_tpr, label="KNN Roc Curve (area=%0.2f)" % Knn_roc_auc, color="orange") # % roc_auc from step 1 AND the label="value" is what goes to legend
+plt.plot([0,1],[0,1],linestyle="--", color = "red", label="random") # the diagonal line
+plt.xlim(0.0,1.0)
+plt.ylim(0.0,1.0)
+plt.title("My ROC Curve")
+plt.legend(loc=4).get_frame().set_linewidth(12)
+plt.show()
+
+
+
+
+### SVM WITH ACCURACY
+
+##SVM with non-normalized data - 0.81 accuracy
+from sklearn.svm import  SVC
+svc = SVC(kernel='rbf', random_state=7) # there are kernel='rbf' / kernel='poly' / kernel='linear'
+svc.fit(x_train, y_train)
+svc.score(x_test, y_test)
+svc_y_pred = svc.predict(x_test)
+print(accuracy_score(y_test, svc_y_pred))
+
+# SVM with normalized data - 0.82 accuracy
+svc = SVC(kernel='rbf', random_state=7) # there are kernel='rbf' / kernel='poly' / kernel='linear' 
+svc.fit(norm_x_train, y_train)
+svc.score(norm_x_test, y_test)
+svc_y_pred = svc.predict(norm_x_test)
+print(accuracy_score(y_test, svc_y_pred))
+print(classification_report(y_test, svc_y_pred))
+print(confusion_matrix(y_test, svc_y_pred))
+
+## Cross-Validation for the SVM model
+from sklearn.model_selection import cross_val_score
+svm_clf = cross_val_score(svc, norm_x_train, y_train, cv=10)
+
+
+# SVM with class probabilites instead of labels
+# As apposed to all the other models, in SVM you need to set the "probability" argument to "True" before using "predict_proba"
+svc = SVC(kernel='rbf', probability = True) # probability=True
+svc.fit(norm_x_train, y_train)
+svc_y_pred_prob = svc.predict_proba(norm_x_test) # predict_proba() instead of predict()
+svc_y_pred_prob_df = pd.DataFrame(svc_y_pred_prob) # turning the predict object to DataFrame
+
+
+# AND THEN...
+
+#STEP 1: extracting auc to put in the legend  # the NUMERIC version of y_test (labels)
+from sklearn.metrics import roc_curve
+from sklearn.metrics import auc
+fpr, tpr, thresholds = roc_curve(y_test_num,svc_y_pred_prob[:,1]) # producing the 3 elements fpr / tpr / thresholds at once
+roc_auc = auc(fpr, tpr)
+
+#STEP 2: ROC curve plot
+plt.plot(fpr,tpr,label="SVM Roc Curve (area=%0.2f)" % roc_auc, color = "blue") # % roc_auc from step 1 AND the label="value" is what goes to legend
+plt.plot([0,1],[0,1],linestyle="--", color = "red", label="random") # the diagonal line
+plt.xlim(0.0,1.0)
+plt.ylim(0.0,1.0)
+plt.title("My ROC Curve")
+plt.legend(loc=4).get_frame().set_linewidth(12)
+plt.show()
+
+### TREE WITH ACCURACY
+from sklearn.tree import DecisionTreeClassifier
+tree = DecisionTreeClassifier(random_state=7)
+tree.fit(x_train, y_train, )
+tree_predict = tree.predict(x_test)
+from sklearn.metrics import accuracy_score
+print(accuracy_score(y_test, tree_predict))
+
+## Cross-Validation for the TREE model
+tree_clf = cross_val_score(tree, x_train, y_train, cv=10)
+
+### TREE WITH PROB / ROC
+from sklearn.metrics import roc_curve
+from sklearn.metrics import auc
+tree_predict_prob = tree.predict_proba(x_test)
+
+#STEP 1: extracting auc to put in the legend  # the NUMERIC version of y_test (labels)
+from sklearn.metrics import roc_curve
+from sklearn.metrics import auc
+tree_fpr, tree_tpr, tree_thresholds = roc_curve(y_test_num, tree_predict_prob[:,1])
+tree_auc = auc(tree_fpr, tree_tpr)
+x = roc_auc_score(y_test_num, tree_predict_prob[:,1])
+
+#STEP 2: ROC curve plot
+plt.plot(tree_fpr,tree_tpr, label = "Tree ROC Curve (area: %0.2f)" % tree_auc)
+plt.plot((0,1), (0,1), linestyle="--")
+plt.legend(loc=4).get_frame().set_linewidth(12)
+plt.show()
+
+
+
+
+### RF WITH ACCURACY
+from sklearn.ensemble import RandomForestClassifier
+rf = RandomForestClassifier(random_state7)
+rf_param = {"max_features": np.arange(2,7)}
+rf_grid = GridSearchCV(estimator = rf, param_grid=rf_param)
+rf_grid.fit(norm_x_train,y_train)
+rf_predict = rf_grid.predict(norm_x_test)
+print(accuracy_score(y_test,rf_predict))
+print(rf_grid.best_params_)
+
+## Cross-Validation for the RF model
+from sklearn.model_selection import cross_val_score
+rf_clf = cross_val_score(rf_grid, norm_x_train, y_train, cv=10)
+
+
+### RF WITH PROB
+from sklearn.metrics import roc_curve
+from sklearn.metrics import auc
+rf_predict_prob = rf_grid.predict_proba(norm_x_test)
+
+
+#STEP 1: extracting auc to put in the legend  # the NUMERIC version of y_test (labels)
+rf_fpr, rf_tpr, rf_thresholds = roc_curve(y_test_num, rf_predict_prob[:,1])
+rf_roc = auc(rf_fpr, rf_tpr)
+
+#STEP 2: ROC curve plot
+plt.plot(rf_fpr,rf_tpr,label = "RF ROC Curve (area: %0.2f)" % rf_roc_score, color = 'purple')
+plt.legend(loc=4)
+plt.show()
+
+
+## GLM WITH ACCURACY
+from sklearn.linear_model import LogisticRegression
+glm = LogisticRegression(random_state=7)
+glm.fit(x_train,y_train)
+glm_predict = glm.predict(x_test)
+print(accuracy_score(y_test,glm_predict))
+
+## Cross-Validation for the GLM model
+glm_clf = cross_val_score(glm, x_train, y_train, cv=10)
+
+### GLM WITH PROB
+glm_predict_proba = glm.predict_proba(x_test)
+
+#STEP 1: extracting auc to put in the legend  # the NUMERIC version of y_test (labels)
+glm_fpr, glm_tpr, glm_thresholds  = roc_curve(y_test_num, glm_predict_proba[:,1])
+glm_auc = auc(glm_fpr,glm_tpr)
+
+#STEP 2: ROC curve plot
+plt.plot(glm_fpr,glm_tpr, label="GLM ROC Curve (area %0.2f)" % glm_auc, color="red")
+plt.legend()
+plt.show()
+
+
+
+# plotting all roc curves
+sns.set_style('white')
+sns.color_palette("Set2", 10)
+plt.plot(rf_fpr,rf_tpr,label = "RF ROC Curve (area: %0.2f)" % rf_roc_score)
+plt.plot(tree_fpr,tree_tpr, label = "Tree ROC Curve (area: %0.2f)" % tree_auc)
+plt.plot((0,1), (0,1), linestyle="--", color="k")
+plt.plot(fpr,tpr,label="SVM Roc Curve (area=%0.2f)" % roc_auc)
+plt.plot(knn_fpr,knn_tpr, label="KNN Roc Curve (area=%0.2f)" % Knn_roc_auc)
+plt.plot(glm_fpr,glm_tpr, label="GLM ROC Curve (area %0.2f)" % glm_auc)
+plt.title("All Models")
+plt.xlim(0.0, 1.0)
+plt.ylim(0.0, 1.0)
+plt.legend(loc=4)
+plt.show()
+
+
+# plotting boxplots of the cross-Validation averages:
+# turning to pd.Series
+knn_clf2 = pd.Series(knn_clf)
+svm_clf2 = pd.Series(svm_clf)
+tree_clf2 = pd.Series(tree_clf)
+rf_clf2 = pd.Series(rf_clf)
+glm_clf2 = pd.Series(glm_clf)
+
+# saving all as an object:
+all_clf = knn_clf2, svm_clf2, tree_clf2,rf_clf2,glm_clf2
+
+# making DF:
+clf_df = pd.DataFrame({"knn": knn_clf2, "svm": svm_clf2, "tree": tree_clf2, "rf": rf_clf2, "glm": glm_clf2})
+
+# "melting" the DF to turn wide df to long df
+clf2_df = pd.melt(clf_df)
+
+# plot!
+sns.boxplot(x = "variable", y="value",hue="variable",boxwidth=3, data=clf2_df)
+plt.show()
+
+
+
+
+
+
+### GRID SEARCH 
+
+# grid search for KNN ## So, It is actualy adding 2 steps between defining the object and fit THE GRID IS THE MODEL ITSELF (i.e knn_grid.fit(x,y) etc...)
+from sklearn.grid_search import GridSearchCV
+knn = neighbors.KNeighborsClassifier() # defining knn object. it will be defined later again with the best "n_neighbors" value: .KNeighborsClassifier(n_neighbors=21)
+param = {"n_neighbors": np.arange(3,22,2), "metric": ["euclidean"]}
+grid_knn = GridSearchCV(estimator=knn, param_grid=param)
+grid_knn.fit(norm_x_train,y_train)
+knn_grid_predict = grid_knn.predict(norm_x_test)
+print(grid_knn.best_score_) # accuracy best score, WATCH THE UNDERSCORE AFTER "score"
+print(grid_knn.best_estimator_.n_neighbors) # the best specific parameters parameter
+print(grid_knn.best_params_) # All the parameters
+print(accuracy_score(y_test,knn_grid_predict))
+
+## Cross-Validation for the grid model
+cross_val_score(grid_knn, norm_x_train,y_train, cv=5)
+
+# grid search for SVM
+from sklearn.grid_search import GridSearchCV
+svc = SVC() # defining svc object w/o any parameters for now
+param_svc = {"C": [0.1,1,10,100,1000], "kernel": ["rbf"]}
+grid_svc = GridSearchCV(estimator=svc2,param_grid=param_svc,refit=True)
+grid_svc.fit(norm_x_train,y_train)
+print(grid_svc.best_params_) # All the parameters
+print(grid_svc.best_estimator_.C) # Just .C
+
+
+## RANDOM SEARCH  # did not help much!!
+from scipy.stats import uniform as sp_rand
+from sklearn.grid_search import RandomizedSearchCV
+tree = DecisionTreeClassifier(random_state=7)
+tree_param = {"max_depth": sp_rand(), "max_features": sp_rand(), "min_samples_split": sp_rand() }
+tree_grid = RandomizedSearchCV(estimator = tree, param_distributions =tree_param, n_iter=100, refit=True, cv=4)
+tree_grid.fit(x_train,y_train)
+tree_grid_predict = tree_grid.predict(x_test)
+print(tree_grid.best_params_)
+print(tree_grid.estimator)
+print(tree_grid.best_score_)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
