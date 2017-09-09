@@ -114,7 +114,7 @@ x_text.shape #the dimensions are (8140,6) out of 3256
 y_train.shape # only a list of 24420L,
 y_test.shape # only a list of 8140L,
 
-#normalize x_train and and x_test with my function (GAVE POOR RESULTS BUT GOOD TO KNOW TO APPLY FUNCTION ON DF)
+#normalize x_train and and x_test with my function (GAVE POOR RESULTS)
 
 def norm(v):
 	val=(v-min(v))/(max(v)-min(v))
